@@ -26,7 +26,6 @@ import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 
-@SuppressWarnings("ALL")
 public class MyListenerService extends NotificationListenerService {
     private static final String ANDROID_APP_ACTIVITY_MANAGER_NATIVE = "android.app.ActivityManagerNative";
     private static final String ANDROID_CONTENT_IINTENT_SENDER = "android.content.IIntentSender";
