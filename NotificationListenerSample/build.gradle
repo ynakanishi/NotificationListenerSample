@@ -1,0 +1,96 @@
+apply plugin: 'android'
+
+configurations {
+    apt
+}
+
+dependencies {
+
+    // http://stackoverflow.com/questions/16683944/androidannotations-nothing-generated-empty-activity/16802216#16802216
+    apt "com.googlecode.androidannotations:androidannotations:${androidAnnotationsVersion}"
+    compile "com.googlecode.androidannotations:androidannotations-api:${androidAnnotationsVersion}"
+
+    compile "com.android.support:appcompat-v7:${supportPackageVersion}"
+
+    // libs/ にある *.jar を一括で追加する
+    compile fileTree(dir: 'libs', include: '*.jar')
+}
+
+android {
+    compileSdkVersion 18
+    buildToolsVersion "18.0.1"
+
+    defaultConfig {
+        minSdkVersion 8
+        targetSdkVersion 18
+
+        versionCode 1
+        versionName '0.0.1'
+    }
+
+    signingConfigs {
+        // debug {
+        //     storeFile file("debug.keystore")
+        // }
+
+        release
+    }
+
+
+    buildTypes {
+        release {
+            runProguard true
+            proguardFile getDefaultProguardFile('proguard-android.txt')
+            proguardFile file('proguard-project.txt')
+
+            // gradle.properties にリリース署名用の設定があれば署名を有効化します。設定のサンプルとして gradle.properties.forReleaseSigning を置いたので参考にしてください。
+            if (project.hasProperty('storeFile')) {
+                signingConfig signingConfigs.release
+            }
+        }
+    }
+}
+
+if (project.hasProperty('storeFile')) {
+    android.signingConfigs.release.storeFile = file(storeFile)
+}
+if (project.hasProperty('storePassword')) {
+    android.signingConfigs.release.storePassword = storePassword
+}
+if (project.hasProperty('keyAlias')) {
+    android.signingConfigs.release.keyAlias = keyAlias
+}
+if (project.hasProperty('keyPassword')) {
+    android.signingConfigs.release.keyPassword = keyPassword
+}
+
+android.applicationVariants.all { variant ->
+    // ↓ def を付けないと プロジェクトの Dynamic Property になってしまい、常に最後の variant 用のディレクトリが使われてしまう。
+    // variant にソースフォルダを追加する方法が見当たらないので R.java 用のソースフォルダを生成場所として利用する。
+    def aptOutput = file("${project.buildDir}/source/r/${variant.dirName}")
+
+    variant.javaCompile.doFirst {
+        println "*** compile doFirst ${variant.name}, aptOutput=${aptOutput}"
+        aptOutput.mkdirs()
+        // インクリメンタルビルドでエラーになるので古いファイルが存在する場合は消しておく
+        aptOutput.eachFileRecurse groovy.io.FileType.FILES, {
+            if (it.name.equals('R.java')) {
+                return
+            }
+            it.delete()
+        }
+        variant.javaCompile.options.compilerArgs += [
+                '-processorpath', configurations.apt.getAsPath(),
+                '-AandroidManifestFile=' + variant.processResources.manifestFile,
+                '-s', aptOutput
+        ]
+    }
+}
+
+// BuildConfig に、VERSION_NAME 定数を追加する
+// see https://groups.google.com/d/msg/adt-dev/KJKjUdCtBxg/jMhRwWbIBq8J
+android.applicationVariants.all { variant ->
+    def versionName = variant.mergedFlavor.versionName + (variant.buildType.versionNameSuffix != null ? variant.buildType.versionNameSuffix : "")
+    variant.generateBuildConfig.javaLines += "public static final String VERSION_NAME = \"${versionName}\";".toString()
+
+}
